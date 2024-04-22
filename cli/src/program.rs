@@ -108,6 +108,7 @@ pub enum ProgramCliCommand {
         buffer_authority_signer_index: SignerIndex,
         max_len: Option<usize>,
         skip_fee_check: bool,
+        batch_size: Option<usize>,
     },
     SetBufferAuthority {
         buffer_pubkey: Pubkey,
@@ -297,6 +298,14 @@ impl ProgramSubCommands for App<'_, '_> {
                                 .takes_value(true)
                                 .validator(is_valid_signer)
                                 .help("Buffer authority [default: the default configured keypair]"),
+                        )
+                        .arg(
+                            Arg::with_name("batch_size")
+                                .long("batch-size")
+                                .value_name("batch_size")
+                                .takes_value(true)
+                                .required(false)
+                                .help("batch size"),
                         )
                         .arg(
                             Arg::with_name("max_len")
@@ -687,6 +696,8 @@ pub fn parse_program_subcommand(
             let signer_info =
                 default_signer.generate_unique_signers(bulk_signers, matches, wallet_manager)?;
 
+            let batch_size = value_of(matches, "batch_size");
+
             CliCommandInfo {
                 command: CliCommand::Program(ProgramCliCommand::WriteBuffer {
                     program_location: matches.value_of("program_location").unwrap().to_string(),
@@ -698,6 +709,7 @@ pub fn parse_program_subcommand(
                         .unwrap(),
                     max_len,
                     skip_fee_check,
+                    batch_size,
                 }),
                 signers: signer_info.signers,
             }
@@ -941,6 +953,7 @@ pub fn process_program_subcommand(
             buffer_authority_signer_index,
             max_len,
             skip_fee_check,
+            batch_size: _,
         } => process_write_buffer(
             rpc_client,
             config,
@@ -2663,6 +2676,10 @@ fn send_deploy_messages(
                         .block_on(tpu_client_fut)
                         .expect("Should return a valid tpu client");
 
+                    let batch_size = match config.command {
+                        CliCommand::Program(ProgramCliCommand::WriteBuffer {batch_size, ..}) => batch_size,
+                        _ => None,
+                    };
                     send_and_confirm_transactions_in_parallel_blocking(
                         rpc_client.clone(),
                         Some(tpu_client),
@@ -2671,6 +2688,7 @@ fn send_deploy_messages(
                         SendAndConfirmConfig {
                             resign_txs_count: Some(5),
                             with_spinner: true,
+                            batch_size,
                         },
                     )
                 },
@@ -3017,6 +3035,7 @@ mod tests {
                     buffer_authority_signer_index: 0,
                     max_len: None,
                     skip_fee_check: false,
+                    batch_size: None
                 }),
                 signers: vec![Box::new(read_keypair_file(&keypair_file).unwrap())],
             }
@@ -3042,6 +3061,7 @@ mod tests {
                     buffer_authority_signer_index: 0,
                     max_len: Some(42),
                     skip_fee_check: false,
+                    batch_size: None,
                 }),
                 signers: vec![Box::new(read_keypair_file(&keypair_file).unwrap())],
             }
@@ -3070,6 +3090,7 @@ mod tests {
                     buffer_authority_signer_index: 0,
                     max_len: None,
                     skip_fee_check: false,
+                    batch_size: None,
                 }),
                 signers: vec![
                     Box::new(read_keypair_file(&keypair_file).unwrap()),
@@ -3101,6 +3122,7 @@ mod tests {
                     buffer_authority_signer_index: 1,
                     max_len: None,
                     skip_fee_check: false,
+                    batch_size: None,
                 }),
                 signers: vec![
                     Box::new(read_keypair_file(&keypair_file).unwrap()),
@@ -3137,6 +3159,7 @@ mod tests {
                     buffer_authority_signer_index: 2,
                     max_len: None,
                     skip_fee_check: false,
+                    batch_size: None,
                 }),
                 signers: vec![
                     Box::new(read_keypair_file(&keypair_file).unwrap()),

@@ -912,6 +912,7 @@ fn send_messages(
                     SendAndConfirmConfig {
                         resign_txs_count: Some(5),
                         with_spinner: true,
+                        batch_size: None,
                     },
                 )
             }

@@ -54,6 +54,7 @@ struct BlockHashData {
 pub struct SendAndConfirmConfig {
     pub with_spinner: bool,
     pub resign_txs_count: Option<usize>,
+    pub batch_size: Option<usize>,
 }
 
 /// Sends and confirms transactions concurrently in a sync context
@@ -477,15 +478,29 @@ pub async fn send_and_confirm_transactions_in_parallel<T: Signers + ?Sized>(
         // clear the map so that we can start resending
         unconfirmed_transasction_map.clear();
 
-        sign_all_messages_and_send(
-            &progress_bar,
-            &rpc_client,
-            &tpu_client,
-            messages_with_index,
-            signers,
-            &context,
-        )
-        .await?;
+        if let Some(batch_size) = config.batch_size {
+            for batch in messages_with_index.chunks(batch_size) {
+                sign_all_messages_and_send(
+                    &progress_bar,
+                    &rpc_client,
+                    &tpu_client,
+                    batch.to_vec(),
+                    signers,
+                    &context,
+                )
+                .await?;
+            }
+        } else {
+            sign_all_messages_and_send(
+                &progress_bar,
+                &rpc_client,
+                &tpu_client,
+                messages_with_index,
+                signers,
+                &context,
+            )
+            .await?;
+        }
 
         // wait until all the transactions are confirmed or expired
         confirm_transactions_till_block_height_and_resend_unexpired_transaction_over_tpu(
